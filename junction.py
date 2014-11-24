@@ -5,6 +5,9 @@ import simpy
 import simpy.rt
 import random
 
+import numpy as np
+import matplotlib.pyplot as plt
+
 verbose = False
 pretty_print = False
 
@@ -15,6 +18,7 @@ served_last = 0
 waited_average = 0
 queue_wa = {"we": (0, 0), "ew": (0, 0), "ns": (0, 0), "sn": (0, 0)}
 
+monitor_data = []
 
 class Car(object):
     def __init__(self, env, junction, traffic_light, i, direction):
@@ -38,19 +42,43 @@ class Car(object):
         # tak se diva, jestli muze jet nebo ne
         with self.junction.request() as req:
             yield req  # cekani na prvni misto
+            
+            #uvolnilo se misto pred autem, auto se posunuje, trva chvili nez se rozjede
+            yield self.env.timeout(random.uniform(1,3))  # X sekund trva rozjizdeni aut
 
-            if verbose:
-                print '%d: %d is waiting for green' % (self.env.now, self.i)
-            yield self.env.process(self.traffic_light.wait())  # cekani na zelenou na semaforu
-            if verbose:
-                print '%d: %d is free to go %s' % (self.env.now, self.i, self.direction)
+            while True:
+                if verbose:
+                    print '%d: %d is waiting for green' % (self.env.now, self.i)
+
+                if self.traffic_light.state == "green":
+                    #jestli je zelena, tak pokracuje bez cekani (nerozjizdi se, jede dal)
+                    break
+                else:
+                    #ceka na semaforu
+                    yield self.env.process(self.traffic_light.wait()) 
+                    #chvili trva nez se rozjede
+                    yield self.env.timeout(random.uniform(1,3))
+
+
+                """
+                #cekani na zelenou na semaforu
+                yield self.env.process(self.traffic_light.wait()) 
+                if verbose:
+                    print '%d: %d is free to go %s' % (self.env.now, self.i, self.direction)
+                yield self.env.timeout(random.uniform(1,3))  # X sekund trva rozjizdeni aut
+
+                break
+                if self.traffic_light.state == "green":
+                    break
+                """
+
 
             waited = self.env.now - started
             waited_average += waited
             q_avg = queue_wa[self.direction]
             queue_wa[self.direction] = (q_avg[0] + waited, q_avg[1] + 1)
 
-            yield self.env.timeout(self.going_through_time)  # doba prujezdu krizovatkou
+            #yield self.env.timeout(self.going_through_time)  # doba prujezdu krizovatkou
             if verbose:
                 print '%d: %d passed junction going %s' % (self.env.now, self.i, self.direction)
             served += 1
@@ -119,10 +147,11 @@ def car_generator(env, interval, junction, traffic_light, direction):
 
 
 def monitor(env, interval, j_we, j_ew, j_ns, j_sn):
-    global served, counter, waited_average, queue_wa, counter_last, served_last
+    global served, counter, waited_average, queue_wa, counter_last, served_last, monitor_data
     while True:
         s = served - served_last
         c = counter - counter_last
+        
         served_last = served
         counter_last = counter
         if pretty_print:
@@ -142,7 +171,22 @@ def monitor(env, interval, j_we, j_ew, j_ns, j_sn):
                 env.now, (s / float(c) * 100), (waited_average / float(served)) if served != 0 else 0,
                 len(j_we.queue), len(j_ew.queue), len(j_ns.queue), len(j_sn.queue)
             )
+
+        monitor_data.append((
+                env.now, (s / float(c) * 100), (waited_average / float(served)) if served != 0 else 0,
+                len(j_we.queue), len(j_ew.queue), len(j_ns.queue), len(j_sn.queue)
+            ))
+
         yield env.timeout(interval)
+
+
+def plot_data():
+    data = np.array(monitor_data)
+
+    plt.plot(range(0, int(sys.argv[1]), 60), data[:,2])
+    plt.ylabel('average waiting time')
+    plt.show()
+
 
 
 def main(running_time):
@@ -156,7 +200,7 @@ def main(running_time):
     tl_ns = TrafficLight(env, "ns", "red", 4)
     tl_sn = TrafficLight(env, "sn", "red", 4)
     # rizeni prepinani semaforu
-    TimedControlLogic(env, 30, 5, tl_we, tl_ew, tl_ns, tl_sn)
+    TimedControlLogic(env, int(sys.argv[2]), 5, tl_we, tl_ew, tl_ns, tl_sn)
 
     # fronta na prvni misto
     j_we = simpy.Resource(env, capacity=1)
@@ -165,19 +209,22 @@ def main(running_time):
     j_sn = simpy.Resource(env, capacity=1)
 
     # generovani prijezdu aut
-    env.process(car_generator(env, 20, j_we, tl_we, "we"))
-    env.process(car_generator(env, 20, j_ew, tl_ew, "ew"))
-    env.process(car_generator(env, 20, j_ns, tl_ns, "ns"))
-    env.process(car_generator(env, 20, j_sn, tl_sn, "sn"))
+    podivny_parametr = 20
+
+    env.process(car_generator(env, podivny_parametr, j_we, tl_we, "we"))
+    env.process(car_generator(env, podivny_parametr, j_ew, tl_ew, "ew"))
+    env.process(car_generator(env, podivny_parametr, j_ns, tl_ns, "ns"))
+    env.process(car_generator(env, podivny_parametr, j_sn, tl_sn, "sn"))
 
     # sbirani statistik o simulaci
     env.process(monitor(env, 60, j_we, j_ew, j_ns, j_sn))
 
     env.run(until=running_time)
 
+    plot_data()
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
+    if len(sys.argv) < 3:
         print "%s running_time" % sys.argv[0]
     else:
         main(int(sys.argv[1]))
