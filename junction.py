@@ -7,6 +7,7 @@ import random
 
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.interpolate import interp1d
 
 verbose = False
 pretty_print = False
@@ -20,6 +21,14 @@ queue_wa = {"we": (0, 0), "ew": (0, 0), "ns": (0, 0), "sn": (0, 0)}
 
 monitor_data = []
 
+start_hour = 0
+day_coef = [0.05,0.01,0.01,0.01,0.1,0.5,1.0,2.0,3.0,3.5,2.0,1.0,1.0,1.5,2.0,3.0,3.5,3.0,2.0,1.0,0.75,0.5,0.25,0.1]
+cars = []
+
+waited_average_actual_interval = 0
+s_actual_interval = 0
+waited_average_actual = []
+
 class Car(object):
     def __init__(self, env, junction, traffic_light, i, direction):
         self.env = env
@@ -31,7 +40,7 @@ class Car(object):
         self.action = env.process(self.go())
 
     def go(self):
-        global served, verbose, waited_average, queue_wa
+        global served, verbose, waited_average, queue_wa, waited_average_actual_interval, s_actual_interval
         if verbose:
             print '%d: %d arrived, will go %s' % (self.env.now, self.i, self.direction)
 
@@ -75,6 +84,7 @@ class Car(object):
 
             waited = self.env.now - started
             waited_average += waited
+            waited_average_actual_interval += waited
             q_avg = queue_wa[self.direction]
             queue_wa[self.direction] = (q_avg[0] + waited, q_avg[1] + 1)
 
@@ -82,6 +92,7 @@ class Car(object):
             if verbose:
                 print '%d: %d passed junction going %s' % (self.env.now, self.i, self.direction)
             served += 1
+            s_actual_interval += 1
 
 
 class TrafficLight(object):
@@ -139,15 +150,20 @@ class TimedControlLogic(object):
 def car_generator(env, interval, junction, traffic_light, direction):
     global counter
     while True:
+
+        hour = (int(round(env.now / 3600.0)) + start_hour) % 24
+
+        interval_x = interval / day_coef[hour]
+
         # vygeneruju auto
         Car(env, junction, traffic_light, counter, direction)
         counter += 1
         # uspim se na nejakou dobu
-        yield env.timeout(random.expovariate(1.0 / interval))
+        yield env.timeout(random.expovariate(1.0 / interval_x))
 
 
 def monitor(env, interval, j_we, j_ew, j_ns, j_sn):
-    global served, counter, waited_average, queue_wa, counter_last, served_last, monitor_data
+    global served, counter, waited_average, queue_wa, counter_last, served_last, monitor_data, cars, waited_average_actual_interval, waited_average_actual, s_actual_interval
     while True:
         s = served - served_last
         c = counter - counter_last
@@ -168,23 +184,41 @@ def monitor(env, interval, j_we, j_ew, j_ns, j_sn):
             )
         else:
             print "%d %.1f %.1f %d %d %d %d" % (
-                env.now, (s / float(c) * 100), (waited_average / float(served)) if served != 0 else 0,
+                env.now, ((s / float(c) * 100) if c != 0 else 0), (waited_average / float(served)) if served != 0 else 0,
                 len(j_we.queue), len(j_ew.queue), len(j_ns.queue), len(j_sn.queue)
             )
 
         monitor_data.append((
-                env.now, (s / float(c) * 100), (waited_average / float(served)) if served != 0 else 0,
+                env.now, ((s / float(c) * 100) if c != 0 else 0), (waited_average / float(served)) if served != 0 else 0,
                 len(j_we.queue), len(j_ew.queue), len(j_ns.queue), len(j_sn.queue)
             ))
+        cars.append(c)
+
+        if env.now % 600 == 0:
+            waited_average_actual.append((waited_average_actual_interval/s_actual_interval) if s_actual_interval != 0 else 0)
+            waited_average_actual_interval = 0
+            s_actual_interval = 0
 
         yield env.timeout(interval)
 
 
-def plot_data():
-    data = np.array(monitor_data)
+def plot_data(running_time):
+    data = np.array(monitor_data) / 60.0
+    time = np.array(range(0, running_time, 60)) / 60
 
-    plt.plot(range(0, int(sys.argv[1]), 60), data[:,2])
+    plt.figure(1)
+
+    plt.subplot(311)
+    plt.plot(time, data[:,2])
+    plt.ylabel('average waiting time cumulative')
+
+    plt.subplot(312)
+    plt.plot(np.array(range(0,running_time, 600))/60, np.array(waited_average_actual)/60.0)
     plt.ylabel('average waiting time')
+
+    plt.subplot(313)
+    plt.plot(time, cars)
+    plt.ylabel('cars arrived')    
     plt.show()
 
 
@@ -221,10 +255,10 @@ def main(running_time):
 
     env.run(until=running_time)
 
-    plot_data()
+    plot_data(running_time)
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
-        print "%s running_time" % sys.argv[0]
+        print "%s running_time in hours" % sys.argv[0]
     else:
-        main(int(sys.argv[1]))
+        main(int(sys.argv[1])*3600)
