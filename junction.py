@@ -261,6 +261,9 @@ class FuzzyControlLogic2(object):
         self.action = env.process(self.run())
         self.light_time = light_time
         self.offset_time = offset_time
+        
+        #loop time - how often question switching
+        loop_time = 1
         #constants for traffic
         self.low_traf_max = 5
         self.med_traf_min = 3
@@ -306,7 +309,7 @@ class FuzzyControlLogic2(object):
         else:
             return 1
 
-    def fuzzyCalculator(self, time, current_traf, opposing_traf):
+    def fuzzySwitch(self, time, current_traf, opposing_traf):
         lll = min(self.traffic_low(current_traf), self.traffic_low(opposing_traf), self.time_low(time)) #
         mll = min(self.traffic_med(current_traf), self.traffic_low(opposing_traf), self.time_low(time))
         hll = min(self.traffic_hig(current_traf), self.traffic_low(opposing_traf), self.time_low(time))
@@ -345,28 +348,30 @@ class FuzzyControlLogic2(object):
         global verbose
         order = [("we", "ew"), ("ns", "sn")]
         o_cnt = 0
+        green_time = 0
         while True:
-            old = o_cnt
-            o_cnt = (o_cnt + 1) % len(order)
-
-            yield self.env.timeout(self.light_time)  # cekani s rozsvicenymi svetly
-
-            # zastaveni jednoho smeru
-            self.traffic_lights[order[old][0]].state = "red"
-            self.traffic_lights[order[old][1]].state = "red"
-
-            yield self.env.timeout(self.offset_time)  # offset pro dojezd aut
-
-            if verbose:
-                print '%d: %s are good to go' % (self.env.now, " and ".join(order[o_cnt]))
-            # pusteni druheho smeru
-            self.traffic_lights[order[o_cnt][0]].state = "green"
-            self.traffic_lights[order[o_cnt][1]].state = "green"
-            # spusti se udalosti tech, co cekali na cervenou
-            self.traffic_lights[order[o_cnt][0]].switch_event.succeed()
-            self.traffic_lights[order[o_cnt][0]].switch_event = self.env.event()
-            self.traffic_lights[order[o_cnt][1]].switch_event.succeed()
-            self.traffic_lights[order[o_cnt][1]].switch_event = self.env.event()
+            current_traffic = 0 #TODO
+            opposing_traffic = 0 #TODO
+            if self.fuzzySwitch(green_time, current_traffic, opposing_traffic) 
+                old = o_cnt
+                o_cnt = (o_cnt + 1) % len(order)
+                yield self.env.timeout(self.loop_time)  # cekani s rozsvicenymi svetly
+                # zastaveni jednoho smeru
+                self.traffic_lights[order[old][0]].state = "red"
+                self.traffic_lights[order[old][1]].state = "red"
+                yield self.env.timeout(self.offset_time)  # offset pro dojezd aut
+                if verbose:
+                    print '%d: %s are good to go' % (self.env.now, " and ".join(order[o_cnt]))
+                # pusteni druheho smeru
+                self.traffic_lights[order[o_cnt][0]].state = "green"
+                self.traffic_lights[order[o_cnt][1]].state = "green"
+                # spusti se udalosti tech, co cekali na cervenou
+                self.traffic_lights[order[o_cnt][0]].switch_event.succeed()
+                self.traffic_lights[order[o_cnt][0]].switch_event = self.env.event()
+                self.traffic_lights[order[o_cnt][1]].switch_event.succeed()
+                self.traffic_lights[order[o_cnt][1]].switch_event = self.env.event()
+            else:
+                green_time += 1
 
 class FuzzyControlLogic(object):
     def __init__(self, env, light_time, offset_time, tl_we, tl_ew, tl_ns, tl_sn, j_we, j_ew, j_ns, j_sn):
