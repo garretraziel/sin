@@ -254,6 +254,120 @@ class TimedControlLogic(object):
             self.traffic_lights[order[o_cnt][1]].switch_event = self.env.event()
 
 
+class FuzzyControlLogic2(object):
+    def __init__(self, env, light_time, offset_time, tl_we, tl_ew, tl_ns, tl_sn):
+        self.env = env
+        self.traffic_lights = {"we": tl_we, "ew": tl_ew, "ns": tl_ns, "sn": tl_sn}
+        self.action = env.process(self.run())
+        self.light_time = light_time
+        self.offset_time = offset_time
+        #constants for traffic
+        self.low_traf_max = 5
+        self.med_traf_min = 3
+        self.med_traf_max = 8
+        self.hig_traf_min = 10
+        self.hig_traf_max = 12
+        #time constants
+        self.low_time_max = 5
+        self.med_time_min = 3
+        self.med_time_max = 8
+        self.hig_time_min = 10
+        self.hig_time_max = 12
+
+    #traffic functions
+    def traffic_low(self, traffic):
+        return max(((-traffic) / self.low_traf_max) + 1, 0)
+    
+    def traffic_med(self, traffic):
+        if(traffic < ((self.med_traf_min + self.med_traf_max) / 2)):
+            return max(0, ( traffic - self.med_traf_min) / ((self.med_traf_max - self.med_traf_min) / 2))
+        else:
+            return max(0, (-traffic + self.med_traf_max) / ((self.med_traf_max - self.med_traf_min) / 2))
+    
+    def traffic_hig(self, traffic):
+        if(traffic < self.high_traf_max):
+            return max(0, ( traffic - self.hig_traf_min) / (self.hig_traf_max - self.hig_traf_min))
+        else:
+            return 1
+     
+     #light functions
+    def time_low(self, time):
+        return max(((-time) / self.low_time_max) + 1, 0)
+    
+    def time_med(self, time):
+        if(time < ((self.med_time_min + self.med_time_max) / 2)):
+            return max(0, ( time - self.med_time_min) / ((self.med_time_max - self.med_time_min) / 2))
+        else:
+            return max(0, (-time + self.med_time_max) / ((self.med_time_max - self.med_time_min) / 2))
+    
+    def time_hig(self, time):
+        if(time < self.hig_time_max):
+            return max(0, ( time - self.hig_time_min) / (self.hig_time_max - self.hig_time_min))
+        else:
+            return 1
+
+    def fuzzyCalculator(self, time, current_traf, opposing_traf):
+        lll = min(self.traffic_low(current_traf), self.traffic_low(opposing_traf), self.time_low(time)) #
+        mll = min(self.traffic_med(current_traf), self.traffic_low(opposing_traf), self.time_low(time))
+        hll = min(self.traffic_hig(current_traf), self.traffic_low(opposing_traf), self.time_low(time))
+        lml = min(self.traffic_low(current_traf), self.traffic_med(opposing_traf), self.time_low(time)) #
+        mml = min(self.traffic_med(current_traf), self.traffic_med(opposing_traf), self.time_low(time))
+        hml = min(self.traffic_hig(current_traf), self.traffic_med(opposing_traf), self.time_low(time))
+        lhl = min(self.traffic_low(current_traf), self.traffic_hig(opposing_traf), self.time_low(time)) #
+        mhl = min(self.traffic_med(current_traf), self.traffic_hig(opposing_traf), self.time_low(time)) #
+        hhl = min(self.traffic_hig(current_traf), self.traffic_hig(opposing_traf), self.time_low(time))
+        #
+        llm = min(self.traffic_low(current_traf), self.traffic_low(opposing_traf), self.time_med(time)) #
+        mlm = min(self.traffic_med(current_traf), self.traffic_low(opposing_traf), self.time_med(time))
+        hlm = min(self.traffic_hig(current_traf), self.traffic_low(opposing_traf), self.time_med(time))
+        lmm = min(self.traffic_low(current_traf), self.traffic_med(opposing_traf), self.time_med(time)) #
+        mmm = min(self.traffic_med(current_traf), self.traffic_med(opposing_traf), self.time_med(time)) #
+        hmm = min(self.traffic_hig(current_traf), self.traffic_med(opposing_traf), self.time_med(time))
+        lhm = min(self.traffic_low(current_traf), self.traffic_hig(opposing_traf), self.time_med(time)) #
+        mhm = min(self.traffic_med(current_traf), self.traffic_hig(opposing_traf), self.time_med(time)) #
+        hhm = min(self.traffic_hig(current_traf), self.traffic_hig(opposing_traf), self.time_med(time))
+        #
+        llh = min(self.traffic_low(current_traf), self.traffic_low(opposing_traf), self.time_hig(time)) #
+        mlh = min(self.traffic_med(current_traf), self.traffic_low(opposing_traf), self.time_hig(time)) #
+        hlh = min(self.traffic_hig(current_traf), self.traffic_low(opposing_traf), self.time_hig(time)) #
+        lmh = min(self.traffic_low(current_traf), self.traffic_med(opposing_traf), self.time_hig(time)) #
+        mmh = min(self.traffic_med(current_traf), self.traffic_med(opposing_traf), self.time_hig(time)) #
+        hmh = min(self.traffic_hig(current_traf), self.traffic_med(opposing_traf), self.time_hig(time)) #
+        lhh = min(self.traffic_low(current_traf), self.traffic_hig(opposing_traf), self.time_hig(time)) #
+        mhh = min(self.traffic_med(current_traf), self.traffic_hig(opposing_traf), self.time_hig(time)) #
+        hhh = min(self.traffic_hig(current_traf), self.traffic_hig(opposing_traf), self.time_hig(time)) 
+        
+        do = max(lll, lml, lhl, mhl, llm, lmm, mmm, lhm, mhm, llh, mlh, hlh, lmh, mmh, hmh, lhh, mhh)
+        dont = max(mll, hll, mll, hml, hhl, mlm, hlm, hmm, hhm, hhh)
+        return (do > dont)        
+
+    def run(self):
+        global verbose
+        order = [("we", "ew"), ("ns", "sn")]
+        o_cnt = 0
+        while True:
+            old = o_cnt
+            o_cnt = (o_cnt + 1) % len(order)
+
+            yield self.env.timeout(self.light_time)  # cekani s rozsvicenymi svetly
+
+            # zastaveni jednoho smeru
+            self.traffic_lights[order[old][0]].state = "red"
+            self.traffic_lights[order[old][1]].state = "red"
+
+            yield self.env.timeout(self.offset_time)  # offset pro dojezd aut
+
+            if verbose:
+                print '%d: %s are good to go' % (self.env.now, " and ".join(order[o_cnt]))
+            # pusteni druheho smeru
+            self.traffic_lights[order[o_cnt][0]].state = "green"
+            self.traffic_lights[order[o_cnt][1]].state = "green"
+            # spusti se udalosti tech, co cekali na cervenou
+            self.traffic_lights[order[o_cnt][0]].switch_event.succeed()
+            self.traffic_lights[order[o_cnt][0]].switch_event = self.env.event()
+            self.traffic_lights[order[o_cnt][1]].switch_event.succeed()
+            self.traffic_lights[order[o_cnt][1]].switch_event = self.env.event()
+
 class FuzzyControlLogic(object):
     def __init__(self, env, light_time, offset_time, tl_we, tl_ew, tl_ns, tl_sn, j_we, j_ew, j_ns, j_sn):
         self.env = env
