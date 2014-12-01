@@ -230,17 +230,17 @@ class FuzzyControlLogic2(object):
         #loop time - how often question switching
         self.loop_time = 1
         #constants for traffic
-        self.low_traf_max = 18
-        self.med_traf_min = 0
-        self.med_traf_max = 36
-        self.hig_traf_min = 18
-        self.hig_traf_max = 36
+        self.low_traf_max = 18.0
+        self.med_traf_min = 0.0
+        self.med_traf_max = 36.0
+        self.hig_traf_min = 18.0
+        self.hig_traf_max = 36.0
         #time constants
-        self.low_time_max = 27
-        self.med_time_min = 0
-        self.med_time_max = 54
-        self.hig_time_min = 27
-        self.hig_time_max = 54
+        self.low_time_max = 27.0
+        self.med_time_min = 0.0
+        self.med_time_max = 54.0
+        self.hig_time_min = 27.0
+        self.hig_time_max = 54.0
 
     #traffic functions
     def traffic_low(self, traffic):
@@ -307,7 +307,7 @@ class FuzzyControlLogic2(object):
         
         do = max(lll, lml, lhl, mhl, llm, lmm, mmm, lhm, mhm, llh, mlh, hlh, lmh, mmh, hmh, lhh, mhh)
         dont = max(mll, hll, mll, hml, hhl, mlm, hlm, hmm, hhm, hhh)
-        print "do:", do, "dont:", dont
+        #print "do:", do, "dont:", dont
         return (do > dont)        
 
     def run(self):
@@ -321,7 +321,7 @@ class FuzzyControlLogic2(object):
             opposing_traffic = len(self.junctions[order[old][0]].queue) + len(self.junctions[order[old][1]].queue) +\
                 self.junctions[order[old][0]].count + self.junctions[order[old][1]].count
 
-            print current_traffic, opposing_traffic
+            #print current_traffic, opposing_traffic
             if (self.fuzzySwitch(green_time, current_traffic, opposing_traffic) or green_time >= self.max_green_time) and (green_time >= 5):
                 print "switching", green_time
                 old = o_cnt
