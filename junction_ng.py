@@ -307,6 +307,7 @@ class FuzzyControlLogic2(object):
         
         do = max(lll, lml, lhl, mhl, llm, lmm, mmm, lhm, mhm, llh, mlh, hlh, lmh, mmh, hmh, lhh, mhh)
         dont = max(mll, hll, mll, hml, hhl, mlm, hlm, hmm, hhm, hhh)
+        print "do:", do, "dont:", dont
         return (do > dont)        
 
     def run(self):
@@ -320,7 +321,9 @@ class FuzzyControlLogic2(object):
             opposing_traffic = len(self.junctions[order[old][0]].queue) + len(self.junctions[order[old][1]].queue) +\
                 self.junctions[order[old][0]].count + self.junctions[order[old][1]].count
 
-            if (self.fuzzySwitch(green_time, current_traffic, opposing_traffic) or green_time >= self.max_green_time) and not(green_time > 5):
+            print current_traffic, opposing_traffic
+            if (self.fuzzySwitch(green_time, current_traffic, opposing_traffic) or green_time >= self.max_green_time) and (green_time >= 5):
+                print "switching", green_time
                 old = o_cnt
                 o_cnt = (o_cnt + 1) % len(order)
                 #yield self.env.timeout(self.loop_time)  # cekani s rozsvicenymi svetly
@@ -362,9 +365,9 @@ def main(running_time):
     tls = {"we": tl_we, "ew": tl_ew, "ns": tl_ns, "sn": tl_sn}
     js = {"we": j_we, "ew": j_ew, "ns": j_ns, "sn": j_sn}
     # rizeni prepinani semaforu
-    TimedControlLogic(env, int(sys.argv[2]), 5, tls, js)
+    #TimedControlLogic(env, int(sys.argv[2]), 5, tls, js)
 
-    #FuzzyControlLogic2(env, int(sys.argv[2]), 5, tls, js)
+    FuzzyControlLogic2(env, int(sys.argv[2]), 5, tls, js)
     
     # generovani prijezdu aut
     lambda_we = 10
