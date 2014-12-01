@@ -317,7 +317,7 @@ class FuzzyControlLogic(object):
 
 
 def main(running_time):
-    global served, counter, waited_average
+    global counter, waited_average
     env = simpy.Environment()
 
     # semafory z jednotlivych smeru
