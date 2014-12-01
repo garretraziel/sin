@@ -129,9 +129,13 @@ start_hour = 0
 day_coef = [0.05,0.01,0.01,0.05,0.1,0.5,1.0,2.0,3.0,3.5,2.5,2.2,2.0,2.2,2.5,3.0,3.5,3.0,2.0,1.0,0.75,0.5,0.25,0.1]
 cars = []
 
-waited_average_actual_interval = 0
-s_actual_interval = 0
-waited_average_actual = []
+waited_average_actual_interval_ns = 0
+s_actual_interval_ns = 0
+waited_average_actual_ns = []
+
+waited_average_actual_interval_we = 0
+s_actual_interval_we = 0
+waited_average_actual_we = []
 
 class Car(object):
     def __init__(self, env, junction, traffic_light, i, direction):
@@ -144,7 +148,7 @@ class Car(object):
         self.action = env.process(self.go())
 
     def go(self):
-        global served, verbose, waited_average, queue_wa, waited_average_actual_interval, s_actual_interval
+        global served, verbose, waited_average, queue_wa, waited_average_actual_interval_ns, s_actual_interval_ns, waited_average_actual_interval_we, s_actual_interval_we
         global k_c, k_p_c
         if verbose:
             print '%d: %d arrived, will go %s' % (self.env.now, self.i, self.direction)
@@ -180,15 +184,19 @@ class Car(object):
 
             waited = self.env.now - started
             waited_average += waited
-            waited_average_actual_interval += waited
+            if self.direction == "ns" or self.direction == "sn":
+                waited_average_actual_interval_ns += waited
+                s_actual_interval_ns += 1
+            else:
+                waited_average_actual_interval_we += waited
+                s_actual_interval_we += 1
+
             q_avg = queue_wa[self.direction]
             queue_wa[self.direction] = (q_avg[0] + waited, q_avg[1] + 1)
 
             #yield self.env.timeout(self.going_through_time)  # doba prujezdu krizovatkou
-            if verbose:
-                print '%d: %d passed junction going %s' % (self.env.now, self.i, self.direction)
             served += 1
-            s_actual_interval += 1
+            
 
         if self.direction == "we" and False:
             with j_karlova.request() as req:
@@ -352,7 +360,7 @@ class FuzzyControlLogic2(object):
         while True:
             current_traffic = 0 #TODO
             opposing_traffic = 0 #TODO
-            if self.fuzzySwitch(green_time, current_traffic, opposing_traffic) 
+            if self.fuzzySwitch(green_time, current_traffic, opposing_traffic):
                 old = o_cnt
                 o_cnt = (o_cnt + 1) % len(order)
                 yield self.env.timeout(self.loop_time)  # cekani s rozsvicenymi svetly
@@ -458,45 +466,22 @@ def car_generator(env, interval, junction, traffic_light, direction):
 
 
 def monitor(env, interval, j_we, j_ew, j_ns, j_sn):
-    global served, counter, waited_average, queue_wa, counter_last, served_last, monitor_data, cars, waited_average_actual_interval, waited_average_actual, s_actual_interval
+    global served, counter, waited_average, queue_wa, counter_last, served_last, monitor_data, cars
+    global waited_average_actual_interval_ns, waited_average_actual_ns, s_actual_interval_ns, waited_average_actual_interval_we, waited_average_actual_we, s_actual_interval_we
     while True:
-        s = served - served_last
         c = counter - counter_last
         
-        served_last = served
         counter_last = counter
-        if pretty_print:
-            print "-"*20
-            print "On %d:" % env.now
-            print "Served: %d cars from %d (%.1f %%)" % (s, c, (s / float(c) * 100))
-            print "Average waiting time: %.1f" % ((waited_average / float(served)) if served != 0 else 0)
-            print "Queue count: %d %d %d %d" % (len(j_we.queue), len(j_ew.queue), len(j_ns.queue), len(j_sn.queue))
-            print "Average waiting time for queues: %.1f %.1f %.1f %.1f" % (
-                queue_wa["we"][0]/float(queue_wa["we"][1]) if queue_wa["we"][1] else 0,
-                queue_wa["ew"][0]/float(queue_wa["ew"][1]) if queue_wa["ew"][1] else 0,
-                queue_wa["ns"][0]/float(queue_wa["ns"][1]) if queue_wa["ns"][1] else 0,
-                queue_wa["sn"][0]/float(queue_wa["sn"][1]) if queue_wa["sn"][1] else 0
-            )
-        else:
-            """
-            print "%d %.1f %.1f %d %d %d %d" % (
-                env.now, ((s / float(c) * 100) if c != 0 else 0), (waited_average / float(served)) if served != 0 else 0,
-                len(j_we.queue), len(j_ew.queue), len(j_ns.queue), len(j_sn.queue)
-            )
-            """
-            pass
-            
 
-        monitor_data.append((
-                env.now, ((s / float(c) * 100) if c != 0 else 0), (waited_average / float(served)) if served != 0 else 0,
-                len(j_we.queue), len(j_ew.queue), len(j_ns.queue), len(j_sn.queue)
-            ))
         cars.append(c)
 
         if env.now % 600 == 0:
-            waited_average_actual.append((waited_average_actual_interval/s_actual_interval) if s_actual_interval != 0 else 0)
-            waited_average_actual_interval = 0
-            s_actual_interval = 0
+            waited_average_actual_ns.append((waited_average_actual_interval_ns/s_actual_interval_ns) if s_actual_interval_ns != 0 else 0)
+            waited_average_actual_interval_ns = 0
+            s_actual_interval_ns = 0
+            waited_average_actual_we.append((waited_average_actual_interval_we/s_actual_interval_we) if s_actual_interval_we != 0 else 0)
+            waited_average_actual_interval_we = 0
+            s_actual_interval_we = 0
 
         yield env.timeout(interval)
 
@@ -507,17 +492,14 @@ def plot_data(running_time):
 
     plt.figure(1)
 
-    plt.subplot(311)
-    plt.plot(time, data[:,2])
-    plt.ylabel('average waiting time cumulative')
-    plt.grid()
+    time10 = np.array(range(0,running_time, 600))/60
 
-    plt.subplot(312)
-    plt.plot(np.array(range(0,running_time, 600))/60, np.array(waited_average_actual)/60.0)
+    plt.subplot(211)
+    plt.plot(time10, np.array(waited_average_actual_ns)/60.0, "b-", time10, np.array(waited_average_actual_we)/60.0, "r-")
     plt.ylabel('average waiting time')
     plt.grid()
 
-    plt.subplot(313)
+    plt.subplot(212)
     plt.plot(time, cars)
     plt.ylabel('cars arrived')    
     plt.grid()
