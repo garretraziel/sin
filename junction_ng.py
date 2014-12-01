@@ -52,7 +52,7 @@ def monitor(env, interval, j_we, j_ew, j_ns, j_sn):
 
 def plot_data(running_time):
     time = np.array(range(0, running_time, 60)) / 60
-
+    
     plt.figure(1)
 
     time10 = np.array(range(0,running_time, 600))/60
@@ -60,11 +60,17 @@ def plot_data(running_time):
     plt.subplot(211)
     plt.plot(time10, np.array(wa_avg_ns)/60.0, "b-", time10, np.array(wa_avg_we)/60.0, "r-")
     plt.ylabel('average waiting time')
+    ticks = np.arange(0, running_time/60+1, 120)
+    time_hours = np.array(map(lambda x: "%d:%d" % (x/60 if x/60 < 24 else x/60 - 24, x%60), ticks))
+    plt.xticks(ticks, time_hours)
     plt.grid()
 
     plt.subplot(212)
     plt.plot(time, cars)
-    plt.ylabel('cars arrived')    
+    plt.ylabel('cars arrived')
+    ticks = np.arange(0, running_time/60+1, 120)
+    time_hours = np.array(map(lambda x: "%d:%d" % (x/60 if x/60 < 24 else x/60 - 24, x%60), ticks))
+    plt.xticks(ticks, time_hours)
     plt.grid()
 
     plt.show()
