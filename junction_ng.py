@@ -24,6 +24,11 @@ wa_interval_we = 0
 s_we = 0
 wa_avg_we = []
 
+wurst_ns = 0
+wurst_we = 0
+wiener_ns = 99999
+wiener_we = 99999
+
 def monitor(env, interval, j_we, j_ew, j_ns, j_sn):
     global counter, counter_last, cars
     global wa_interval_ns, wa_avg_ns, s_ns, wa_interval_we, wa_avg_we, s_we
@@ -76,6 +81,7 @@ class Car(object):
 
     def go(self):
         global queue_wa, wa_interval_ns, s_ns, wa_interval_we, s_we
+        global wurst_we, wurst_ns, wiener_ns, wiener_we
         started = self.env.now
 
         # fronta na prvni misto u semaforu
@@ -102,9 +108,17 @@ class Car(object):
             if self.direction == "ns" or self.direction == "sn":
                 wa_interval_ns += waited
                 s_ns += 1
+                if wurst_ns < waited:
+                    wurst_ns = waited
+                if wiener_ns > waited:
+                    wiener_ns = waited
             else:
                 wa_interval_we += waited
                 s_we += 1
+                if wurst_we < waited:
+                    wurst_we = waited
+                if wiener_we > waited:
+                    wiener_we = waited
 
             q_avg = queue_wa[self.direction]
             queue_wa[self.direction] = (q_avg[0] + waited, q_avg[1] + 1)
@@ -172,6 +186,48 @@ class TimedControlLogic(object):
             self.traffic_lights[order[o_cnt][1]].switch_event.succeed()
             self.traffic_lights[order[o_cnt][1]].switch_event = self.env.event()
 
+def m_low(var):
+    if var > 10:
+        return 0.0
+    else:
+        return (-1/10.0)*var + 1
+
+
+def m_middle(var):
+    if var < 5 or var > 35:
+        return 0.0
+
+    if 5 <= var < 20:
+        return (1/15.0)*var - (1/3.0)
+
+    if 20 <= var <= 35:
+        return (-1/15.0)*var + (7/3.0)
+
+
+def m_high(var):
+    if var < 30:
+        return 0.0
+
+    if var > 40:
+        return 1.0
+
+    if 30 <= var <= 40:
+        return (1/10.0)*var - (3.0)
+
+class Fuzzy(object):
+    def __init__(self, var):
+        self.var = var
+        self.L = m_low(var)
+        self.M = m_middle(var)
+        self.H = m_high(var)
+
+
+def NOT(v):
+    return 1-v
+
+def AND(*args):
+    return min(args)
+
 class FuzzyControlLogic1(object):
     def __init__(self, env, _light_time, offset_time, tls, js):
         self.env = env
@@ -179,6 +235,28 @@ class FuzzyControlLogic1(object):
         self.junctions = js
         self.action = env.process(self.run())
         self.offset_time = offset_time
+
+    def decide(self, aktualni, vedlejsi):
+        if(aktualni == 0 and vedlejsi == 0):
+            return False
+
+        if (aktualni == 0 and vedlejsi != 0):
+            return True
+
+        X = Fuzzy(aktualni)
+        Y = Fuzzy(vedlejsi)
+        #R = Fuzzy(5*(1.0*vedlejsi/aktualni if aktualni!=0 else 9999)) #fixme
+
+        F = []
+        T = []
+
+        F.append(X.H)
+        T.append(AND(X.L, NOT(Y.L)))
+        F.append(AND(X.M, NOT(Y.H)))
+        T.append(AND(X.M, Y.H))
+        F.append(AND(X.L, Y.L))
+
+        return max(F) < max(T)
 
     def run(self):
         global verbose
@@ -192,10 +270,7 @@ class FuzzyControlLogic1(object):
             vedlejsi = len(self.junctions[order[old][0]].queue) + len(self.junctions[order[old][1]].queue) +\
                 self.junctions[order[old][0]].count + self.junctions[order[old][1]].count
 
-            interval___ = 30 if dlouhy_interval(aktualni, vedlejsi) else 5
-            print aktualni, vedlejsi, interval___
-
-            if decide(aktualni, vedlejsi):
+            if self.decide(aktualni, vedlejsi):
                 old = o_cnt
                 o_cnt = (o_cnt + 1) % len(order)
 
@@ -367,7 +442,7 @@ def main(running_time):
     # rizeni prepinani semaforu
     #TimedControlLogic(env, int(sys.argv[2]), 5, tls, js)
 
-    FuzzyControlLogic2(env, int(sys.argv[2]), 5, tls, js)
+    FuzzyControlLogic1(env, int(sys.argv[2]), 5, tls, js)
     
     # generovani prijezdu aut
     lambda_we = 10
@@ -383,7 +458,10 @@ def main(running_time):
 
     env.run(until=running_time)
 
+    print "wurst tiem: ", wurst_ns, wurst_we
+    print "wiener tiem: ", wiener_ns, wiener_we
     plot_data(running_time)
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
