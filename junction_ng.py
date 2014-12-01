@@ -186,112 +186,8 @@ class TimedControlLogic(object):
             self.traffic_lights[order[o_cnt][1]].switch_event.succeed()
             self.traffic_lights[order[o_cnt][1]].switch_event = self.env.event()
 
-def m_low(var):
-    if var > 10:
-        return 0.0
-    else:
-        return (-1/10.0)*var + 1
 
-
-def m_middle(var):
-    if var < 5 or var > 35:
-        return 0.0
-
-    if 5 <= var < 20:
-        return (1/15.0)*var - (1/3.0)
-
-    if 20 <= var <= 35:
-        return (-1/15.0)*var + (7/3.0)
-
-
-def m_high(var):
-    if var < 30:
-        return 0.0
-
-    if var > 40:
-        return 1.0
-
-    if 30 <= var <= 40:
-        return (1/10.0)*var - (3.0)
-
-class Fuzzy(object):
-    def __init__(self, var):
-        self.var = var
-        self.L = m_low(var)
-        self.M = m_middle(var)
-        self.H = m_high(var)
-
-
-def NOT(v):
-    return 1-v
-
-def AND(*args):
-    return min(args)
-
-class FuzzyControlLogic1(object):
-    def __init__(self, env, _light_time, offset_time, tls, js):
-        self.env = env
-        self.traffic_lights = tls
-        self.junctions = js
-        self.action = env.process(self.run())
-        self.offset_time = offset_time
-
-    def decide(self, aktualni, vedlejsi):
-        if(aktualni == 0 and vedlejsi == 0):
-            return False
-
-        if (aktualni == 0 and vedlejsi != 0):
-            return True
-
-        X = Fuzzy(aktualni)
-        Y = Fuzzy(vedlejsi)
-        #R = Fuzzy(5*(1.0*vedlejsi/aktualni if aktualni!=0 else 9999)) #fixme
-
-        F = []
-        T = []
-
-        F.append(X.H)
-        T.append(AND(X.L, NOT(Y.L)))
-        F.append(AND(X.M, NOT(Y.H)))
-        T.append(AND(X.M, Y.H))
-        F.append(AND(X.L, Y.L))
-
-        return max(F) < max(T)
-
-    def run(self):
-        global verbose
-        order = [("we", "ew"), ("ns", "sn")]
-        o_cnt = 0
-        old = 1
-        while True:
-
-            aktualni = len(self.junctions[order[o_cnt][0]].queue) + len(self.junctions[order[o_cnt][1]].queue) +\
-                self.junctions[order[o_cnt][0]].count + self.junctions[order[o_cnt][1]].count
-            vedlejsi = len(self.junctions[order[old][0]].queue) + len(self.junctions[order[old][1]].queue) +\
-                self.junctions[order[old][0]].count + self.junctions[order[old][1]].count
-
-            if self.decide(aktualni, vedlejsi):
-                old = o_cnt
-                o_cnt = (o_cnt + 1) % len(order)
-
-                # zastaveni jednoho smeru
-                self.traffic_lights[order[old][0]].state = "red"
-                self.traffic_lights[order[old][1]].state = "red"
-
-                yield self.env.timeout(self.offset_time)  # offset pro dojezd aut
-
-                # pusteni druheho smeru
-                self.traffic_lights[order[o_cnt][0]].state = "green"
-                self.traffic_lights[order[o_cnt][1]].state = "green"
-                # spusti se udalosti tech, co cekali na cervenou
-                self.traffic_lights[order[o_cnt][0]].switch_event.succeed()
-                self.traffic_lights[order[o_cnt][0]].switch_event = self.env.event()
-                self.traffic_lights[order[o_cnt][1]].switch_event.succeed()
-                self.traffic_lights[order[o_cnt][1]].switch_event = self.env.event()
-
-            yield self.env.timeout(5)
-
-class FuzzyControlLogic2(object):
+class FuzzyControlLogic(object):
     def __init__(self, env, _light_time, offset_time, tls, js):
         self.env = env
         self.traffic_lights = tls
@@ -398,7 +294,6 @@ class FuzzyControlLogic2(object):
 
             #print current_traffic, opposing_traffic
             if (self.fuzzySwitch(green_time, current_traffic, opposing_traffic) or green_time >= self.max_green_time) and (green_time >= 5):
-                print "switching", green_time
                 old = o_cnt
                 o_cnt = (o_cnt + 1) % len(order)
                 #yield self.env.timeout(self.loop_time)  # cekani s rozsvicenymi svetly
@@ -441,8 +336,7 @@ def main(running_time):
     js = {"we": j_we, "ew": j_ew, "ns": j_ns, "sn": j_sn}
     # rizeni prepinani semaforu
     #TimedControlLogic(env, int(sys.argv[2]), 5, tls, js)
-
-    FuzzyControlLogic1(env, int(sys.argv[2]), 5, tls, js)
+    FuzzyControlLogic(env, int(sys.argv[2]), 5, tls, js)
     
     # generovani prijezdu aut
     lambda_we = 10
