@@ -315,6 +315,7 @@ class FuzzyControlLogic(object):
                 self.traffic_lights[order[o_cnt][0]].switch_event = self.env.event()
                 self.traffic_lights[order[o_cnt][1]].switch_event.succeed()
                 self.traffic_lights[order[o_cnt][1]].switch_event = self.env.event()
+                yield self.env.timeout(5) #enforcing minimum time of 5 seconds green light
                 green_time = 0
             else:
                 green_time += 1
