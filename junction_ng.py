@@ -24,6 +24,9 @@ wa_interval_we = 0
 s_we = 0
 wa_avg_we = []
 
+wc_ns = []
+wc_we = []
+
 wurst_ns = 0
 wurst_we = 0
 wiener_ns = 99999
@@ -32,6 +35,8 @@ wiener_we = 99999
 def monitor(env, interval, j_we, j_ew, j_ns, j_sn):
     global counter, counter_last, cars
     global wa_interval_ns, wa_avg_ns, s_ns, wa_interval_we, wa_avg_we, s_we
+    global wc_ns, wc_we
+
     while True:
         c = counter - counter_last
         
@@ -47,6 +52,9 @@ def monitor(env, interval, j_we, j_ew, j_ns, j_sn):
             wa_interval_we = 0
             s_we = 0
 
+            wc_ns.append(len(j_ns.queue) + len(j_sn.queue))
+            wc_we.append(len(j_we.queue) + len(j_ew.queue))
+
         yield env.timeout(interval)
 
 
@@ -55,9 +63,9 @@ def plot_data(running_time):
     
     plt.figure(1)
 
-    time10 = np.array(range(0,running_time, 600))/60
+    time10 = np.array(range(0, running_time, 600)) / 60
 
-    plt.subplot(211)
+    plt.subplot(311)
     plt.plot(time10, np.array(wa_avg_ns)/60.0, "b-", time10, np.array(wa_avg_we)/60.0, "r-")
     plt.ylabel('average waiting time')
     ticks = np.arange(0, running_time/60+1, 120)
@@ -65,9 +73,17 @@ def plot_data(running_time):
     plt.xticks(ticks, time_hours)
     plt.grid()
 
-    plt.subplot(212)
+    plt.subplot(312)
     plt.plot(time, cars)
     plt.ylabel('cars arrived')
+    ticks = np.arange(0, running_time/60+1, 120)
+    time_hours = np.array(map(lambda x: "%d:%d" % (x/60 if x/60 < 24 else x/60 - 24, x%60), ticks))
+    plt.xticks(ticks, time_hours)
+    plt.grid()
+
+    plt.subplot(313)
+    plt.plot(time10, wc_ns, "b-", time10, wc_we, "r-")
+    plt.ylabel('number waiting cars')
     ticks = np.arange(0, running_time/60+1, 120)
     time_hours = np.array(map(lambda x: "%d:%d" % (x/60 if x/60 < 24 else x/60 - 24, x%60), ticks))
     plt.xticks(ticks, time_hours)
@@ -341,8 +357,8 @@ def main(running_time):
     tls = {"we": tl_we, "ew": tl_ew, "ns": tl_ns, "sn": tl_sn}
     js = {"we": j_we, "ew": j_ew, "ns": j_ns, "sn": j_sn}
     # rizeni prepinani semaforu
-    #TimedControlLogic(env, int(sys.argv[2]), 5, tls, js)
-    FuzzyControlLogic(env, int(sys.argv[2]), 5, tls, js)
+    TimedControlLogic(env, int(sys.argv[2]), 5, tls, js)
+    #FuzzyControlLogic(env, int(sys.argv[2]), 5, tls, js)
     
     # generovani prijezdu aut
     lambda_we = 10
