@@ -27,10 +27,10 @@ wa_avg_we = []
 wc_ns = []
 wc_we = []
 
-wurst_ns = 0
-wurst_we = 0
-wiener_ns = 99999
-wiener_we = 99999
+worst_ns = 0
+worst_we = 0
+best_ns = 99999
+best_we = 99999
 
 def monitor(env, interval, j_we, j_ew, j_ns, j_sn):
     global counter, counter_last, cars
@@ -103,7 +103,7 @@ class Car(object):
 
     def go(self):
         global queue_wa, wa_interval_ns, s_ns, wa_interval_we, s_we
-        global wurst_we, wurst_ns, wiener_ns, wiener_we
+        global worst_we, worst_ns, best_ns, best_we
         started = self.env.now
 
         # fronta na prvni misto u semaforu
@@ -130,17 +130,17 @@ class Car(object):
             if self.direction == "ns" or self.direction == "sn":
                 wa_interval_ns += waited
                 s_ns += 1
-                if wurst_ns < waited:
-                    wurst_ns = waited
-                if wiener_ns > waited:
-                    wiener_ns = waited
+                if worst_ns < waited:
+                    worst_ns = waited
+                if best_ns > waited:
+                    best_ns = waited
             else:
                 wa_interval_we += waited
                 s_we += 1
-                if wurst_we < waited:
-                    wurst_we = waited
-                if wiener_we > waited:
-                    wiener_we = waited
+                if worst_we < waited:
+                    worst_we = waited
+                if best_we > waited:
+                    best_we = waited
 
             q_avg = queue_wa[self.direction]
             queue_wa[self.direction] = (q_avg[0] + waited, q_avg[1] + 1)
@@ -358,8 +358,8 @@ def main(running_time):
     tls = {"we": tl_we, "ew": tl_ew, "ns": tl_ns, "sn": tl_sn}
     js = {"we": j_we, "ew": j_ew, "ns": j_ns, "sn": j_sn}
     # rizeni prepinani semaforu
-    TimedControlLogic(env, int(sys.argv[2]), 5, tls, js)
-    #FuzzyControlLogic(env, int(sys.argv[2]), 5, tls, js)
+    #TimedControlLogic(env, int(sys.argv[2]), 5, tls, js)
+    FuzzyControlLogic(env, int(sys.argv[2]), 5, tls, js)
     
     # generovani prijezdu aut
     lambda_we = 10
@@ -375,8 +375,8 @@ def main(running_time):
 
     env.run(until=running_time)
 
-    print "wurst tiem: ", wurst_ns, wurst_we
-    print "wiener tiem: ", wiener_ns, wiener_we
+    print "worst time: ", worst_ns, worst_we
+    print "best time: ", best_ns, best_we
     plot_data(running_time)
 
 
